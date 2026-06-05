@@ -1,0 +1,36 @@
+name: SIN-Code Grill-Me-Skill
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  ceo-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.SIN_GITHUB_FALLBACK_TOKEN }}
+          fetch-depth: 0
+
+      - name: CEO Audit (Quick profile)
+        env:
+          SIN_GITHUB_FALLBACK_TOKEN: ${{ secrets.SIN_GITHUB_FALLBACK_TOKEN }}
+        run: |
+          if command -v sin &> /dev/null; then
+            sin ceo-audit --profile QUICK --format sarif --output report.sarif || true
+            sin ceo-audit --profile QUICK --format markdown --output report.md || true
+          else
+            echo "sin CLI not available, skipping"
+          fi
+
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: report.sarif
+        continue-on-error: true
