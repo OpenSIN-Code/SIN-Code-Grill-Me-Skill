@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sin-grill-me"
-version = "0.1.1"
+version = "0.2.0"
 description = "Adversarial design-review interview skill for SIN-Code"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -33,6 +33,16 @@ dev = [
     "pytest-cov>=5.0",
     "pytest-asyncio>=0.23",
 ]
+
+[project.scripts]
+# v0.2.0 — Standalone CLI shims for the 5 MCP tools. The original tools
+# are async; each shim wraps the call in asyncio.run. Lets shell users
+# run grilling sessions without spinning up the FastMCP server.
+grill-start = "sin_grill_me.cli_shims.grill_start:main"
+grill-status = "sin_grill_me.cli_shims.grill_status:main"
+grill-next-question = "sin_grill_me.cli_shims.grill_next_question:main"
+grill-record-answer = "sin_grill_me.cli_shims.grill_record_answer:main"
+grill-synthesize = "sin_grill_me.cli_shims.grill_synthesize:main"
 
 [project.urls]
 Homepage = "https://github.com/OpenSIN-Code/SIN-Code-Grill-Me-Skill"
