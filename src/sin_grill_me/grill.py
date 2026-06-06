@@ -15,7 +15,12 @@ from typing import Any
 
 
 class QuestionCategory(str, Enum):
-    """Categories of grilling questions."""
+    """Categories of grilling questions.
+
+    The 10 categories form a complete review checklist for any
+    architecture/design decision. Each one probes a different risk
+    surface (assumptions, edge cases, scope, success criteria, etc.).
+    """
     ASSUMPTION = "assumption"
     EDGE_CASE = "edge_case"
     SCOPE = "scope"
@@ -30,15 +35,30 @@ class QuestionCategory(str, Enum):
 
 
 class GrillSession:
-    """A single grilling session."""
+    """A single grilling session.
+
+    Holds the state for one adversarial design-review conversation: the
+    question tree, recorded decisions, and the synthesis output.
+
+    Lifecycle: init → next_question → record_answer (loop) → synthesize.
+    """
 
     def __init__(self, topic: str, context: str = ""):
-        self.session_id = str(uuid.uuid4())
+        """Initialize a grilling session for the given topic.
+
+        Args:
+            topic: What to grill (e.g. "API design for user auth").
+            context: Free-form context (codebase files, requirements,
+                prior decisions). Stored on `self.context` for the
+                agent's reference; not used to generate questions
+                (the question tree is fixed at 10 generic categories).
+        """
+        self.session_id = str(uuid.uuid4())  # UUIDv4 — globally unique without coordination
         self.topic = topic
         self.context = context
-        self.status = "active"
+        self.status = "active"  # transitions: active → complete → synthesized
         self.questions_asked = 0
-        self.questions_remaining = 10
+        self.questions_remaining = 10  # 10 fixed questions; see _generate_question_tree
         self.total_questions = 10
         self.decisions: list[dict[str, Any]] = []
         self.assumptions: list[dict[str, Any]] = []
@@ -47,7 +67,12 @@ class GrillSession:
         self._generate_question_tree()
 
     def _generate_question_tree(self) -> None:
-        """Generate the default question tree for a session."""
+        """Generate the default question tree for a session.
+
+        Fixed 10-question tree — one per `QuestionCategory` value. If you
+        add a new category to the enum, append its question here or
+        `test_question_categories` will fail.
+        """
         self.questions = [
             {
                 "question": f"What problem does '{self.topic}' solve? Who has this problem?",
@@ -112,10 +137,16 @@ class GrillSession:
         ]
 
     def next_question(self) -> dict[str, Any]:
-        """Get the next unresolved question.
+        """Get the next unresolved question and mark it as asked.
 
         Returns:
-            Dict with question, category, recommended_answer.
+            Dict with keys: `question`, `category`, `recommended_answer`.
+            When all questions are resolved, returns a sentinel dict
+            with category="complete" and the synthesis handoff message.
+
+        Side effects:
+            Increments `questions_asked`, decrements `questions_remaining`.
+            Sets `status = "complete"` when all questions are resolved.
         """
         for q in self.questions:
             if not q["resolved"]:
@@ -130,12 +161,20 @@ class GrillSession:
         }
 
     def record_answer(self, question: str, answer: str, resolution: str = "") -> None:
-        """Record a user's answer to a question.
+        """Record a user's answer to a question and mark it resolved.
 
         Args:
-            question: The question text.
-            answer: The user's answer.
-            resolution: The resolved decision.
+            question: The exact question text (must match an unresolved
+                question in the tree).
+            answer: The user's free-form answer (stored for context).
+            resolution: The concrete, decided outcome — e.g. "Users can
+                only edit their own profile". Empty string means "user
+                answered but the decision is still open".
+
+        Side effects:
+            Marks the matching question resolved. If `resolution` is
+            non-empty, appends to `self.decisions`. When all questions
+            are resolved, sets `status = "complete"`.
         """
         for q in self.questions:
             if q["question"] == question:
@@ -160,7 +199,16 @@ class GrillSession:
         """Synthesize the session into decisions and recommendations.
 
         Returns:
-            Dict with decisions, assumptions, out_of_scope, open_questions, recommendations.
+            Dict with 5 keys:
+              - `decisions`: list of resolved decision strings
+              - `assumptions`: list of resolved questions (what we know)
+              - `out_of_scope`: list of unresolved questions (what was skipped)
+              - `open_questions`: list of unresolved questions (what's still open)
+              - `recommendations`: list of next-step handoff actions
+
+        Side effects:
+            Sets `status = "synthesized"`. Idempotent — calling twice
+            is safe and returns the same data.
         """
         self.status = "synthesized"
         decisions = [d["resolution"] for d in self.decisions if d["resolution"]]
