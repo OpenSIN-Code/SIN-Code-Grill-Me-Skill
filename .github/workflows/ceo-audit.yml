@@ -17,6 +17,16 @@ jobs:
           token: ${{ secrets.SIN_GITHUB_FALLBACK_TOKEN }}
           fetch-depth: 0
 
+      - name: Verify no build artifacts
+        run: |
+          count=$(git ls-files | grep -cE "(__pycache__|\.egg-info|\.pyc$)" || true)
+          if [ "$count" -gt 0 ]; then
+            echo "::error::Found $count tracked build artifacts"
+            git ls-files | grep -E "(__pycache__|\.egg-info|\.pyc$)"
+            exit 1
+          fi
+          echo "OK: no build artifacts tracked"
+
       - name: CEO Audit (Quick profile)
         env:
           SIN_GITHUB_FALLBACK_TOKEN: ${{ secrets.SIN_GITHUB_FALLBACK_TOKEN }}
